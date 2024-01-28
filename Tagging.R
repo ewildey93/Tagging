@@ -1,26 +1,38 @@
+#load the packages you need
 library(camtrapR)
 library(data.table)
 library(dplyr)
 library(stringr)
 library(lubridate)
-setwd("C:/Users/eliwi/OneDrive/Documents/NDOW-Lions/Tagging")
-Timelapse <- read.csv("./6F_DEL_230411-231013/6F_DEL_230411-231013.csv", na.strings = "")
-Powershell <- read.delim("C:/Users/eliwi/OneDrive/Documents/NDOW-Lions/Tagging/6F_DEL_230411-231013/100EK113/6F_231013.txt")
-data("recordTableSample")
-str(recordTableSample)
-#example record table
+#read in output from Timelapse, change to your file path
+Timelapse <- read.csv(file = "./6F_DEL_230411-231013/6F_DEL_230411-231013.csv", na.strings = "")
+#change name of DateTime column
 colnames(Timelapse)[4] <- "DateTimeOriginal"
+
 Timelapse$CAM_ID <- "6F"
+Timelapse$MTN <- "DEL"
 
-#####read metadata off images for CamID and temperature,
-#####a bit concerned with bigger file folders how this will work######
-#tmp_dir <- tempdir()
-#list.files(tmp_dir)
+#for rows with SPP2 add a new row to dataframe
+for(i in 1:nrow(Timelapse)){
+if (!is.na(Timelapse$SPP2)){
+  row <- Timelapse[i,]
+  row[,"SPP"] <- Timelapse[i,"SPP2"]
+  row[, "SPP2"] <- NA
+  Timelapse[i,"SPP2"] <- NA
+  rbind(Timelapse, row)
+  }
+}
 
 
-#Timelapse$DateTimeOriginal <- as.POSIXct(Timelapse$DateTimeOriginal, format="%Y-%m-%d %H:%M:%S")
-#Timelapse$DATE <- as.Date(Timelapse$DateTimeOriginal)
-#Timelapse$TIME <- format(Timelapse$DateTimeOriginal, "%H:%M:%S")
+
+#add Date and time columns from datetime combined column
+Timelapse$DATE <- as.Date(as.POSIXct(Timelapse$DateTimeOriginal, format="%Y-%m-%d %H:%M:%S"))
+Timelapse$TIME <- format(as.POSIXct(Timelapse$DateTimeOriginal, format="%Y-%m-%d %H:%M:%S"), "%H:%M:%S")
+
+######read temperature data off of images######################
+#  slow step, could be problematic for bigger photo folders   #
+###############################################################
+#change path argument to path of photos folder
 pics <- list.files(path="./6F_DEL_230411-231013/", pattern=".jpg$", full.names=T, recursive=T, ignore.case=T)
 for (p in 1:length(pics)){
   IMAGE  <- magick::image_read(pics[p]) 
@@ -30,81 +42,25 @@ for (p in 1:length(pics)){
   Timelapse[p,"TEMPERATURE"] <- TempF$word[1]
   
 }
+#check to see if temperature data was picked up correctly, should return: integer(0)
 str_which(Timelapse$TEMPERATURE, "[:punct:]")
+#remove F for fahrenheit from Temperature category and turn it into numeric data
 Timelapse$TEMPERATURE <- as.numeric(gsub(pattern= "F", replacement= "",x=Timelapse$TEMPERATURE))
 
-#exiftool_dir<-"C:/Users/eliwi/AppData/Local/R/win-library/4.2"      
-#exiftoolPath(exiftoolDir = exiftool_dir)
-#exif <- exifTagNames(inDir = "C:/Users/eliwi/OneDrive/Documents/NDOW-Lions/Tagging/6F_DEL_230411-231013", "100EK113")
-
-
-####split into bouts, dont forget about SPP2#####
-Detections <- Timelapse[!is.na(Timelapse$SPP),]
-outtable <- assessTemporalIndependence2(intable = Detections,deltaTimeComparedTo = "lastIndependentRecord",
-                                       columnOfInterest = "SPP", camerasIndependent = FALSE,
-                                        stationCol = "CAM_ID",minDeltaTime = 30)
-outtable2 <- assessTemporalIndependence2(intable = Detections,deltaTimeComparedTo = "lastRecord",
-                                         columnOfInterest = "SPP", camerasIndependent = FALSE,
-                                         stationCol = "CAM_ID",minDeltaTime = 30)
-table(outtable$independent)
-table(outtable2$independent)
-which(outtable$independent ==TRUE)
-outtest <- as.data.frame(cbind(outtable$independent,outtable2$independent))
-#fill in bout column with sequential number
-outtable$bout <- NA
-for (i in 1:nrow(outtable)) {
-  if (outtable$independent[i] == TRUE) {
-    outtable$bout[i]= sum(outtable$independent[1:i] == TRUE)
-  }else {
-    outtable$bout[i] = outtable$bout[i-1]
-  }
-}
-
-#######collapse data into bouts###########
-head <- outtable%>%group_by(bout)%>%slice_head()
-tail <- outtable%>%group_by(bout)%>%slice_tail()
-tail2 <- tail[,c(2,24,30)]
-colnames(tail2)[1:2] <- c("FILE_END", "TIME_END")
-boutable <- merge(head, tail2)
-Temp <- as.numeric()
-for (b in 1:length(unique(outtable$bout))){
-  bouts <- outtable[outtable$bout == b,]
-  print(b)
-  diff <- max(bouts$TEMPERATURE) - min(bouts$TEMPERATURE)
-  if (diff < 5) {
-    Temp <- append(Temp,median(bouts$TEMPERATURE))
-  } else {
-    Temp <- append(Temp, mean(bouts$TEMPERATURE))
-  }
-}
-boutable <- cbind(boutable, Temp )
-boutable2 <- boutable[,c(1:4, 7, 10, 15:21, 24, 25, 31:33)]
-colnames(boutable2)[c(3,15)] <- c("FILE_START", "TIME_START")
-boutable2$MTN <- ifelse(grepl(pattern = "DEL", x = boutable2$RootFolder) == TRUE, "DEL", "CLO")
-boutable2 <- boutable2[,c(5,19,14,15,17,3,16,18,6,7,8,1,9,10,11,12,13,2,4)]
-boutable3 <- data.frame(boutable2[,1:9], AD_M="", AD_F="", AD_U="", SUB_M="",
-                        SUB_F="", SUB_U="", YOY_M="", YOY_F="", YOY_U="", 
-                        U_U="", boutable2[,10:17])
-for (b in 1:length(boutable3$bout)){
-  if (table(outtable$bout)[b] > 1) {boutable3[b, 10:19] <- ""} 
-  else{
-    
-  }
-}
-# age sex combo columns, has root folder, relative path columns
-
-#######functions##########
+#########################
+#######function##########
 # assess temporal independence between records   ####
+#should see assessTemporalIndependence appear in environment pane uner functions once run#
 
 assessTemporalIndependence2 <- function(intable,
-                                       deltaTimeComparedTo,
-                                       columnOfInterest,     # species/individual column
-                                       cameraCol,
-                                       camerasIndependent,
-                                       stationCol,
-                                       minDeltaTime,
-                                       eventSummaryColumn,
-                                       eventSummaryFunction)
+                                        deltaTimeComparedTo,
+                                        columnOfInterest,     # species/individual column
+                                        cameraCol,
+                                        camerasIndependent,
+                                        stationCol,
+                                        minDeltaTime,
+                                        eventSummaryColumn,
+                                        eventSummaryFunction)
 {
   # check if all Exif DateTimeOriginal tags were read correctly
   if(any(is.na(intable$DateTimeOriginal))){
@@ -128,12 +84,12 @@ assessTemporalIndependence2 <- function(intable,
                         check.names      = FALSE)        # to prevent ":" being converted to ".", e.g. in EXIF:Make
   
   # sort records by station, species, then time
-  intable <- intable[order(intable[, stationCol], intable[, columnOfInterest], intable$DateTimeOriginal),]
+  intable <- intable[order(intable[, stationCol], intable[, columnOfInterest], intable$DateTimeOriginal),] #, intable[, columnOfInterest]
   
   for(xy in 1:nrow(intable)){     # for every record
     
     
-    which.columnOfInterest <- which(intable[, columnOfInterest]  == intable[xy, columnOfInterest])          # same species/individual
+    which.columnOfInterest <- which(intable[, columnOfInterest]  == intable[xy, columnOfInterest])                     # same species/individual from either of first 2 columns
     which.stationCol       <- which(intable[, stationCol]        == intable[xy, stationCol])                # at same station
     which.independent      <- which(intable$independent          == TRUE)                                   # independent (first or only record of a species at a station)
     #which.earlier          <- which(intable$DateTimeOriginal     <  intable$DateTimeOriginal[xy])          # earlier than record xy (takes long)
@@ -215,8 +171,8 @@ assessTemporalIndependence2 <- function(intable,
     }   # end   if(intable$DateTimeOriginal[xy] == min(...)} else {...}
   }     # end for(xy in 1:nrow(intable))
   
-
-
+  
+  
   # keep only independent records
   outtable <- intable
   
@@ -229,10 +185,70 @@ assessTemporalIndependence2 <- function(intable,
   
   # remove "independent" column
   
-
+  
   
   return(outtable)
 }
+
+
+##############################
+####split data into bouts#####
+##############################
+#get only those photos where something was detected
+Detections <- Timelapse[!is.na(Timelapse$SPP),]
+#calculate time between bouts and "independence" of detections to determine bouts
+outtable <- assessTemporalIndependence2(intable = Detections,deltaTimeComparedTo = "lastRecord",
+                                         columnOfInterest = "SPP", camerasIndependent = FALSE,
+                                         stationCol = "CAM_ID",minDeltaTime = 30)
+table(outtable$independent)
+table(outtable2$independent)
+which(outtable$independent ==TRUE)
+outtest <- as.data.frame(cbind(outtable$independent,outtable2$independent))
+table(outtest$V1 == outtest$V2)
+#fill in bout column with sequential number
+outtable$bout <- NA
+for (i in 1:nrow(outtable)) {
+  if (outtable$independent[i] == TRUE) {
+    outtable$bout[i]= sum(outtable$independent[1:i] == TRUE)
+  }else {
+    outtable$bout[i] = outtable$bout[i-1]
+  }
+}
+
+#######collapse data into bouts###########
+head <- outtable%>%group_by(bout)%>%slice_head()
+tail <- outtable%>%group_by(bout)%>%slice_tail()
+tail2 <- tail[,c(2,24,30)]
+colnames(tail2)[1:2] <- c("FILE_END", "TIME_END")
+boutable <- merge(head, tail2)
+Temp <- as.numeric()
+for (b in 1:length(unique(outtable$bout))){
+  bouts <- outtable[outtable$bout == b,]
+  print(b)
+  diff <- max(bouts$TEMPERATURE) - min(bouts$TEMPERATURE)
+  if (diff < 5) {
+    Temp <- append(Temp,median(bouts$TEMPERATURE))
+  } else {
+    Temp <- append(Temp, mean(bouts$TEMPERATURE))
+  }
+}
+boutable <- cbind(boutable, Temp )
+boutable2 <- boutable[,c(1:4, 7, 10, 15:21, 24, 25, 31:33)]
+colnames(boutable2)[c(3,15)] <- c("FILE_START", "TIME_START")
+boutable2$MTN <- ifelse(grepl(pattern = "DEL", x = boutable2$RootFolder) == TRUE, "DEL", "CLO")
+boutable2 <- boutable2[,c(5,19,14,15,17,3,16,18,6,7,8,1,9,10,11,12,13,2,4)]
+boutable3 <- data.frame(boutable2[,1:9], AD_M="", AD_F="", AD_U="", SUB_M="",
+                        SUB_F="", SUB_U="", YOY_M="", YOY_F="", YOY_U="", 
+                        U_U="", boutable2[,10:17])
+for (b in 1:length(boutable3$bout)){
+  if (table(outtable$bout)[b] > 1) {boutable3[b, 10:19] <- ""} 
+  else{
+    
+  }
+}
+# age sex combo columns, has root folder, relative path columns
+
+
 
 ###########scrap#################
 intable <- Detections
@@ -241,3 +257,19 @@ columnOfInterest = "SPP"
 camerasIndependent = FALSE
 stationCol = "CAM_ID"
 minDeltaTime = 30
+
+Detections2 <- Detections
+not <- which(Detections2$SPP != "Black-tailed Jackrabbit")
+Detections2$SPP2[sample(not,15)]<-"Black-tailed Jackrabbit"
+sum(!is.na(Detections2$SPP2) ==TRUE)
+#Detections2= 162 + 17= 179
+for(i in 1:nrow(Detections2)){
+  if (!is.na(Detections2$SPP2[i]) == TRUE){
+    row <- Detections2[i,]
+    row[,"SPP"] <- Detections2[i,"SPP2"]
+    row[, "SPP2"] <- NA
+    Detections2[i,"SPP2"] <- NA
+    Detections2 <- rbind(Detections2, row)
+  }
+}
+
