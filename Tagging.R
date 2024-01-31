@@ -5,7 +5,8 @@ library(dplyr)
 library(stringr)
 library(lubridate)
 #read in output from Timelapse, change to your file path
-Timelapse <- read.csv(file = "./6F_DEL_230411-231013/6F_DEL_230411-231013.csv", na.strings = "")
+setwd("C:/Users/eliwi/OneDrive/Documents/NDOW-Lions/Tagging")
+Timelapse <- read.csv(file = "C:/Users/eliwi/OneDrive/Documents/NDOW-Lions/Tagging/6F_DEL_230411-231013/6F_DEL_230411-231013.csv", na.strings = "")
 #change name of DateTime column
 colnames(Timelapse)[4] <- "DateTimeOriginal"
 
@@ -13,17 +14,29 @@ Timelapse$CAM_ID <- "6F"
 Timelapse$MTN <- "DEL"
 
 #for rows with SPP2 add a new row to dataframe
-for(i in 1:nrow(Timelapse)){
-if (!is.na(Timelapse$SPP2)){
+#this will show how many rows have SPP2 and therefore how many rows will be added
+table(!is.na(Timelapse$SPP2))
+#run the loop to add rows
+loopnum <- nrow(Timelapse)
+for(i in 1:loopnum){
+if (!is.na(Timelapse$SPP2[i]) == TRUE){
   row <- Timelapse[i,]
   row[,"SPP"] <- Timelapse[i,"SPP2"]
   row[, "SPP2"] <- NA
   Timelapse[i,"SPP2"] <- NA
-  rbind(Timelapse, row)
+  Timelapse <- rbind(Timelapse, row)
   }
 }
 
-
+for(i in 1:nrow(Detections2)){
+  if (!is.na(Detections2$SPP2[i]) == TRUE){
+    row <- Detections2[i,]
+    row[,"SPP"] <- Detections2[i,"SPP2"]
+    row[, "SPP2"] <- NA
+    Detections2[i,"SPP2"] <- NA
+    Detections2 <- rbind(Detections2, row)
+  }
+}
 
 #add Date and time columns from datetime combined column
 Timelapse$DATE <- as.Date(as.POSIXct(Timelapse$DateTimeOriginal, format="%Y-%m-%d %H:%M:%S"))
@@ -236,6 +249,7 @@ boutable <- cbind(boutable, Temp )
 boutable2 <- boutable[,c(1:4, 7, 10, 15:21, 24, 25, 31:33)]
 colnames(boutable2)[c(3,15)] <- c("FILE_START", "TIME_START")
 boutable2$MTN <- ifelse(grepl(pattern = "DEL", x = boutable2$RootFolder) == TRUE, "DEL", "CLO")
+boutable2$CAM_ID <- grepl(stringr::str_extract(x, "^.{2}"))
 boutable2 <- boutable2[,c(5,19,14,15,17,3,16,18,6,7,8,1,9,10,11,12,13,2,4)]
 boutable3 <- data.frame(boutable2[,1:9], AD_M="", AD_F="", AD_U="", SUB_M="",
                         SUB_F="", SUB_U="", YOY_M="", YOY_F="", YOY_U="", 
