@@ -1,3 +1,13 @@
+#########################################################
+#########################################################
+#########################################################
+#Script for automating composition of bout template from Timelapse output
+#with some data filled in. To use, run as is but modify file paths
+# in lines: 16, 17, 27, 273
+#########################################################
+#########################################################
+#########################################################
+
 #load the packages you need
 library(camtrapR)
 library(data.table)
@@ -11,7 +21,7 @@ Timelapse <- read.csv(file = "C:/Users/eliwi/OneDrive/Documents/NDOW-Lions/Taggi
 #change name of DateTime column
 colnames(Timelapse)[4] <- "DateTimeOriginal"
 
-Timelapse$CAM_ID <- str_extract(Timelapse$RootFolder, "^.{2}")
+Timelapse$CAM_ID <- str_extract(Timelapse$RootFolder, "^.{2}") # ^ means start of line, . means anything but line break, {2} means 2 characters combined with . means 2 of any character that aren't whitespace
 Timelapse$MTN <- ifelse(grepl(pattern = "DEL", x = Timelapse$RootFolder) == TRUE, "DEL", "CLO")
 ######read temperature data off of images######################
 #  slow step, could be problematic for bigger photo folders   #
