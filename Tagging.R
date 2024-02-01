@@ -4,44 +4,15 @@ library(data.table)
 library(dplyr)
 library(stringr)
 library(lubridate)
+library(stringr)
 #read in output from Timelapse, change to your file path
 setwd("C:/Users/eliwi/OneDrive/Documents/NDOW-Lions/Tagging")
 Timelapse <- read.csv(file = "C:/Users/eliwi/OneDrive/Documents/NDOW-Lions/Tagging/6F_DEL_230411-231013/6F_DEL_230411-231013.csv", na.strings = "")
 #change name of DateTime column
 colnames(Timelapse)[4] <- "DateTimeOriginal"
 
-Timelapse$CAM_ID <- "6F"
-Timelapse$MTN <- "DEL"
-
-#for rows with SPP2 add a new row to dataframe
-#this will show how many rows have SPP2 and therefore how many rows will be added
-table(!is.na(Timelapse$SPP2))
-#run the loop to add rows
-loopnum <- nrow(Timelapse)
-for(i in 1:loopnum){
-if (!is.na(Timelapse$SPP2[i]) == TRUE){
-  row <- Timelapse[i,]
-  row[,"SPP"] <- Timelapse[i,"SPP2"]
-  row[, "SPP2"] <- NA
-  Timelapse[i,"SPP2"] <- NA
-  Timelapse <- rbind(Timelapse, row)
-  }
-}
-
-for(i in 1:nrow(Detections2)){
-  if (!is.na(Detections2$SPP2[i]) == TRUE){
-    row <- Detections2[i,]
-    row[,"SPP"] <- Detections2[i,"SPP2"]
-    row[, "SPP2"] <- NA
-    Detections2[i,"SPP2"] <- NA
-    Detections2 <- rbind(Detections2, row)
-  }
-}
-
-#add Date and time columns from datetime combined column
-Timelapse$DATE <- as.Date(as.POSIXct(Timelapse$DateTimeOriginal, format="%Y-%m-%d %H:%M:%S"))
-Timelapse$TIME <- format(as.POSIXct(Timelapse$DateTimeOriginal, format="%Y-%m-%d %H:%M:%S"), "%H:%M:%S")
-
+Timelapse$CAM_ID <- str_extract(Timelapse$RootFolder, "^.{2}")
+Timelapse$MTN <- ifelse(grepl(pattern = "DEL", x = Timelapse$RootFolder) == TRUE, "DEL", "CLO")
 ######read temperature data off of images######################
 #  slow step, could be problematic for bigger photo folders   #
 ###############################################################
@@ -55,15 +26,40 @@ for (p in 1:length(pics)){
   Timelapse[p,"TEMPERATURE"] <- TempF$word[1]
   
 }
-#check to see if temperature data was picked up correctly, should return: integer(0)
+#check to see if temperature data was read correctly off images, should return: integer(0)
 str_which(Timelapse$TEMPERATURE, "[:punct:]")
 #remove F for fahrenheit from Temperature category and turn it into numeric data
 Timelapse$TEMPERATURE <- as.numeric(gsub(pattern= "F", replacement= "",x=Timelapse$TEMPERATURE))
 
+#for rows with SPP2 add a new row to dataframe for that detection
+#this will show how many rows have SPP2 and therefore how many rows will be added
+table(!is.na(Timelapse$SPP2))
+#run the loop to add rows
+loopnum <- nrow(Timelapse)
+for(i in 1:loopnum){
+if (!is.na(Timelapse$SPP2[i]) == TRUE){
+  row <- Timelapse[i,]
+  row[,"SPP"] <- Timelapse[i,"SPP2"]
+  row[, "SPP2"] <- NA
+  Timelapse[i,"SPP2"] <- NA
+  Timelapse <- rbind(Timelapse, row)
+  }
+}
+# do i need something else here to accounts for details in comments, or
+#clear data from the rest of the row?
+
+#add Date and time columns from datetime combined column
+Timelapse$DATE <- as.Date(as.POSIXct(Timelapse$DateTimeOriginal, format="%Y-%m-%d %H:%M:%S"))
+Timelapse$TIME <- format(as.POSIXct(Timelapse$DateTimeOriginal, format="%Y-%m-%d %H:%M:%S"), "%H:%M:%S")
+
+
 #########################
 #######function##########
-# assess temporal independence between records   ####
-#should see assessTemporalIndependence appear in environment pane uner functions once run#
+# create function to assess temporal independence between records  for bouts ####
+#should see assessTemporalIndependence appear in environment pane under functions once run#
+#this is copied and modified from camtrapr:::assessTemporalIndependence function
+#script will jump to line 199 when run, note this is just creating the function not running it on data
+#I've only set this up to run for our specific set up only 1 camera at a site (CamerasIndependent=FALSE)
 
 assessTemporalIndependence2 <- function(intable,
                                         deltaTimeComparedTo,
@@ -213,11 +209,7 @@ Detections <- Timelapse[!is.na(Timelapse$SPP),]
 outtable <- assessTemporalIndependence2(intable = Detections,deltaTimeComparedTo = "lastRecord",
                                          columnOfInterest = "SPP", camerasIndependent = FALSE,
                                          stationCol = "CAM_ID",minDeltaTime = 30)
-table(outtable$independent)
-table(outtable2$independent)
-which(outtable$independent ==TRUE)
-outtest <- as.data.frame(cbind(outtable$independent,outtable2$independent))
-table(outtest$V1 == outtest$V2)
+
 #fill in bout column with sequential number
 outtable$bout <- NA
 for (i in 1:nrow(outtable)) {
@@ -229,11 +221,14 @@ for (i in 1:nrow(outtable)) {
 }
 
 #######collapse data into bouts###########
+#get first and last record for each bout since we need file and time start/end
 head <- outtable%>%group_by(bout)%>%slice_head()
 tail <- outtable%>%group_by(bout)%>%slice_tail()
-tail2 <- tail[,c(2,24,30)]
+tail2 <- tail[,c("File","TIME","bout")]
 colnames(tail2)[1:2] <- c("FILE_END", "TIME_END")
+#merge first and last record of each bout into same row
 boutable <- merge(head, tail2)
+#average temperature for each bout, based on Hannah's rule 
 Temp <- as.numeric()
 for (b in 1:length(unique(outtable$bout))){
   bouts <- outtable[outtable$bout == b,]
@@ -245,45 +240,50 @@ for (b in 1:length(unique(outtable$bout))){
     Temp <- append(Temp, mean(bouts$TEMPERATURE))
   }
 }
+#merge temperature data with bout data
 boutable <- cbind(boutable, Temp )
-boutable2 <- boutable[,c(1:4, 7, 10, 15:21, 24, 25, 31:33)]
-colnames(boutable2)[c(3,15)] <- c("FILE_START", "TIME_START")
-boutable2$MTN <- ifelse(grepl(pattern = "DEL", x = boutable2$RootFolder) == TRUE, "DEL", "CLO")
-boutable2$CAM_ID <- grepl(stringr::str_extract(x, "^.{2}"))
-boutable2 <- boutable2[,c(5,19,14,15,17,3,16,18,6,7,8,1,9,10,11,12,13,2,4)]
+#start to assemble dataframe in manner of Bout Template excel file, picking out columns we need
+boutable2 <- boutable[,c("CAM_ID", "MTN", "DATE", "TIME", "TIME_END", "File", "FILE_END", 
+                         "Temp", "SPP", "L_ANTLER", "R_ANTLER", "PHENO", "ENTER", "ENTER_2",
+                         "NOTES")]
+colnames(boutable2)[colnames(boutable2) == "TIME"] <- "TIME_START"
+colnames(boutable2)[colnames(boutable2) == "File"] <- "FILE_START"
+
+#add sex/age columns to dataframe
 boutable3 <- data.frame(boutable2[,1:9], AD_M="", AD_F="", AD_U="", SUB_M="",
                         SUB_F="", SUB_U="", YOY_M="", YOY_F="", YOY_U="", 
-                        U_U="", boutable2[,10:17])
-for (b in 1:length(boutable3$bout)){
-  if (table(outtable$bout)[b] > 1) {boutable3[b, 10:19] <- ""} 
-  else{
+                        U_U="", boutable2[,10:15])
+
+#for filling in adult/sex columns if bout is only 1 photo
+#for (b in 1:length(boutable3$bout)){
+ # if (table(outtable$bout)[b] > 1) {boutable3[b, 10:19] <- ""} 
+  #else{
     
-  }
-}
+#  }
+#}
 # age sex combo columns, has root folder, relative path columns
 
+write.csv(boutable3, paste0(Timelapse$RootFolder, "bout.csv"))
 
-
+#################################
 ###########scrap#################
-intable <- Detections
-deltaTimeComparedTo = "lastRecord"
-columnOfInterest = "SPP"
-camerasIndependent = FALSE
-stationCol = "CAM_ID"
-minDeltaTime = 30
+#################################
+#arguments to test assessTemporalIndependence2###
+#######################
+#intable <- Detections
+#deltaTimeComparedTo = "lastRecord"
+#columnOfInterest = "SPP"
+#camerasIndependent = FALSE
+#stationCol = "CAM_ID"
+#minDeltaTime = 30
 
-Detections2 <- Detections
-not <- which(Detections2$SPP != "Black-tailed Jackrabbit")
-Detections2$SPP2[sample(not,15)]<-"Black-tailed Jackrabbit"
-sum(!is.na(Detections2$SPP2) ==TRUE)
-#Detections2= 162 + 17= 179
-for(i in 1:nrow(Detections2)){
-  if (!is.na(Detections2$SPP2[i]) == TRUE){
-    row <- Detections2[i,]
-    row[,"SPP"] <- Detections2[i,"SPP2"]
-    row[, "SPP2"] <- NA
-    Detections2[i,"SPP2"] <- NA
-    Detections2 <- rbind(Detections2, row)
-  }
-}
+
+
+#check to see difference between lastIndependentRecord and lastRecord##
+#################################################
+#table(outtable$independent)
+#table(outtable2$independent)
+#which(outtable$independent ==TRUE)
+#outtest <- as.data.frame(cbind(outtable$independent,outtable2$independent))
+#table(outtest$V1 == outtest$V2)
 
