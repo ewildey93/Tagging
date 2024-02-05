@@ -262,7 +262,7 @@ colnames(boutable2)[colnames(boutable2) == "File"] <- "FILE_START"
 #add sex/age columns to dataframe
 boutable3 <- data.frame(boutable2[,1:9], AD_M="", AD_F="", AD_U="", SUB_M="",
                         SUB_F="", SUB_U="", YOY_M="", YOY_F="", YOY_U="", 
-                        U_U="", boutable2[,10:11], BOUT_COLUMN="",boutable2[,12],
+                        U_U="", boutable2[,10:11], BOUT_COLUMN="",PHENO=boutable2[,12],
                         x10M="", boutable2[,13:15])
 
 #for filling in adult/sex columns if bout is only 1 photo
