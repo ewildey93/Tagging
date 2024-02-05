@@ -132,7 +132,7 @@ assessTemporalIndependence2 <- function(intable,
       #find common elements of multiple vectors, which index values are the same, subset to those
       which.tmp <- Reduce(intersect, list(which.columnOfInterest, #species
                                           which.stationCol))      #camera
-      duplicateTime <- which(duplicated(intable$DateTimeOriginal) ==TRUE)
+      duplicateTime <- which(duplicated(intable[,c("DateTimeOriginal", "SPP")]) ==TRUE)
       if(intable$DateTimeOriginal[xy]  == min(intable$DateTimeOriginal[which.tmp]) & !(xy %in% duplicateTime)) {
         intable$independent[xy]       <- TRUE
         intable$delta.time.secs[xy]   <- 0
@@ -275,6 +275,7 @@ boutable3 <- data.frame(boutable2[,1:9], AD_M="", AD_F="", AD_U="", SUB_M="",
 # age sex combo columns, has root folder, relative path columns
 
 write.csv(boutable3, paste0("./",Timelapse$RootFolder[1], "bout.csv"))
+
 
 #################################
 ###########scrap#################
