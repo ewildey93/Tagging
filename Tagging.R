@@ -274,7 +274,7 @@ boutable3 <- data.frame(boutable2[,1:9], AD_M="", AD_F="", AD_U="", SUB_M="",
 #}
 # age sex combo columns, has root folder, relative path columns
 
-write.csv(boutable3, paste0(Timelapse$RootFolder, "bout.csv"))
+write.csv(boutable3, paste0("./",Timelapse$RootFolder[1], "bout.csv"))
 
 #################################
 ###########scrap#################
