@@ -17,17 +17,17 @@ library(lubridate)
 library(stringr)
 #read in output from Timelapse, change to your file path
 setwd("C:/Users/eliwi/OneDrive/Documents/NDOW-Lions/Tagging")
-Timelapse <- read.csv(file = "C:/Users/eliwi/OneDrive/Documents/NDOW-Lions/Tagging/6F_DEL_230411-231013/6F_DEL_230411-231013.csv", na.strings = "")
+Timelapse <- read.csv(file = "C:/Users/eliwi/OneDrive/Documents/NDOW-Lions/Tagging/CLOSP_230816-240130Timelapse.csv", na.strings = "")
 #change name of DateTime column
 colnames(Timelapse)[4] <- "DateTimeOriginal"
 
-Timelapse$CAM_ID <- str_extract(Timelapse$RootFolder, "^.{2}") # ^ means start of line, . means anything but line break, {2} means 2 characters combined with . means 2 of any character that aren't whitespace
+Timelapse$CAM_ID <- str_extract(Timelapse$RootFolder, ".*(?=_)") # ^ means start of line, . means anything but line break, {2} means 2 characters combined with . means 2 of any character that aren't whitespace
 Timelapse$MTN <- ifelse(grepl(pattern = "DEL", x = Timelapse$RootFolder) == TRUE, "DEL", "CLO")
 ######read temperature data off of images######################
 #  slow step, could be problematic for bigger photo folders   #
 ###############################################################
 #change path argument to path of photos folder
-pics <- list.files(path="./6F_DEL_230411-231013/", pattern=".jpg$", full.names=T, recursive=T, ignore.case=T)
+pics <- list.files(path="./CLOSP_230816-240130/", pattern=".jpg$", full.names=T, recursive=T, ignore.case=T)
 for (p in 1:length(pics)){
   IMAGE  <- magick::image_read(pics[p]) 
   #temperature
@@ -132,7 +132,7 @@ assessTemporalIndependence2 <- function(intable,
       #find common elements of multiple vectors, which index values are the same, subset to those
       which.tmp <- Reduce(intersect, list(which.columnOfInterest, #species
                                           which.stationCol))      #camera
-      duplicateTime <- which(duplicated(intable[,c("DateTimeOriginal", "SPP")]) ==TRUE)
+      duplicateTime <- which(duplicated(intable[,c("DateTimeOriginal", "SPP")]) ==TRUE) # need to include SPP for duplicate time stamps caused by SPP2 rows added
       if(intable$DateTimeOriginal[xy]  == min(intable$DateTimeOriginal[which.tmp]) & !(xy %in% duplicateTime)) {
         intable$independent[xy]       <- TRUE
         intable$delta.time.secs[xy]   <- 0
