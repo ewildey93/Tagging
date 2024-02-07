@@ -16,12 +16,12 @@ library(stringr)
 library(lubridate)
 library(stringr)
 #read in output from Timelapse, change to your file path
-setwd("C:/Users/eliwi/OneDrive/Documents/NDOW-Lions/Tagging")
-Timelapse <- read.csv(file = "C:/Users/eliwi/OneDrive/Documents/NDOW-Lions/Tagging/CLOSP_230816-240130Timelapse.csv", na.strings = "")
+setwd("C:/Users/eli.wildey/Documents/TrailCamPhotos")
+Timelapse <- read.csv(file = "./4F_CLO_230501-240104/4F_CLO_230501-240104Timelapse.csv", na.strings = "")
 #change name of DateTime column
 colnames(Timelapse)[4] <- "DateTimeOriginal"
 
-Timelapse$CAM_ID <- str_extract(Timelapse$RootFolder, ".*(?=_)") # ^ means start of line, . means anything but line break, {2} means 2 characters combined with . means 2 of any character that aren't whitespace
+Timelapse$CAM_ID <- str_extract(Timelapse$RootFolder, "[^_]+") # ^ means start of line, . means anything but line break, {2} means 2 characters combined with . means 2 of any character that aren't whitespace
 Timelapse$MTN <- ifelse(grepl(pattern = "DEL", x = Timelapse$RootFolder) == TRUE, "DEL", "CLO")
 ######read temperature data off of images######################
 #  slow step, could be problematic for bigger photo folders   #
