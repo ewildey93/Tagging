@@ -27,7 +27,7 @@ Timelapse$MTN <- ifelse(grepl(pattern = "DEL", x = Timelapse$RootFolder) == TRUE
 #  slow step, could be problematic for bigger photo folders   #
 ###############################################################
 #change path argument to path of photos folder
-pics <- list.files(path="./CLOSP_230816-240130/", pattern=".jpg$", full.names=T, recursive=T, ignore.case=T)
+pics <- list.files(path="./4F_CLO_230501-240104/", pattern=".jpg$", full.names=T, recursive=T, ignore.case=T)
 for (p in 1:length(pics)){
   IMAGE  <- magick::image_read(pics[p]) 
   #temperature
@@ -264,7 +264,8 @@ boutable3 <- data.frame(boutable2[,1:9], AD_M="", AD_F="", AD_U="", SUB_M="",
                         SUB_F="", SUB_U="", YOY_M="", YOY_F="", YOY_U="", 
                         U_U="", boutable2[,10:11], BOUT_COLUMN="",PHENO=boutable2[,12],
                         x10M="", boutable2[,13:15])
-
+boutable4 <- boutable3[boutable3$SPP != "Human", ]
+boutable4 <- boutable4[order(boutable4[, "DATE"],boutable4[, "FILE_START"]),]
 #for filling in adult/sex columns if bout is only 1 photo
 #for (b in 1:length(boutable3$bout)){
  # if (table(outtable$bout)[b] > 1) {boutable3[b, 10:19] <- ""} 
@@ -274,7 +275,7 @@ boutable3 <- data.frame(boutable2[,1:9], AD_M="", AD_F="", AD_U="", SUB_M="",
 #}
 # age sex combo columns, has root folder, relative path columns
 
-write.csv(boutable3, paste0("./",Timelapse$RootFolder[1], "bout.csv"))
+write.csv(boutable4, paste0("./",Timelapse$RootFolder[1], "bout.csv"))
 
 
 #################################
