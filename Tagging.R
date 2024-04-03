@@ -17,7 +17,7 @@ library(lubridate)
 library(stringr)
 #read in output from Timelapse, change to your file path
 setwd("C:/Users/eli.wildey/Documents/TrailCamPhotos")
-Timelapse <- read.csv(file = "./5J_CLO_230509-231215/5J_CLO_230509-231215Timelapse.csv", na.strings = "")
+Timelapse <- read.csv(file = "./5E_DEL_231013-240330/5E_DEL_231013-240330Timelapse.csv", na.strings = "")
 #change name of DateTime column
 colnames(Timelapse)[4] <- "DateTimeOriginal"
 
@@ -27,20 +27,28 @@ Timelapse$MTN <- ifelse(grepl(pattern = "DEL", x = Timelapse$RootFolder) == TRUE
 #  slow step, could be problematic for bigger photo folders   #
 ###############################################################
 #change path argument to path of photos folder
-pics <- list.files(path="./5J_CLO_230509-231215/", pattern=".jpg$", full.names=T, recursive=T, ignore.case=T)
+pics <- list.files(path="./5E_DEL_231013-240330/", pattern=".jpg$", full.names=T, recursive=T, ignore.case=T)
 for (p in 1:length(pics)){
   IMAGE  <- magick::image_read(pics[p]) 
   #temperature
-  IMAGE2  <- magick::image_crop(image = IMAGE, geometry = "273x60+958+1236") #crop image
+  IMAGE2  <- magick::image_crop(image = IMAGE, geometry = "100x59+984+1239") #crop image
   TempF <- tesseract::ocr_data(IMAGE2) # ocr the cropped image
-  Timelapse[p,"TEMPERATURE"] <- TempF$word[1]
+  idx <- which(Timelapse$File == str_extract(pics[p], "([^/]+$)"))
+  Timelapse[idx,"TEMPERATURE"] <- TempF$word[1]
   
 }
+
 #check to see if temperature data was read correctly off images, should return: integer(0)
 str_which(Timelapse$TEMPERATURE, "[:punct:]")
+# had a bug where, 0F was getting read as OF or 5AF, this checks to see if any temperature contains letters instead of numbers
+str_which(Timelapse$TEMPERATURE, "[:alpha:](?=F)") 
+#if above line returns a number (e.g. [1] 27) this tells you what row has misread temperature and you can go
+#and fix it with line below simply by putting correct temperature after arrow as in "0F"
+Timelapse$TEMPERATURE[str_which(Timelapse$TEMPERATURE, "[:alpha:](?=F)")] <- "54F"
 #remove F for fahrenheit from Temperature category and turn it into numeric data
 Timelapse$TEMPERATURE <- as.numeric(gsub(pattern= "F", replacement= "",x=Timelapse$TEMPERATURE))
-
+table(is.na(Timelapse$TEMPERATURE))
+which(is.na(Timelapse$TEMPERATURE))
 #for rows with SPP2 add a new row to dataframe for that detection
 #this will show how many rows have SPP2 and therefore how many rows will be added
 table(!is.na(Timelapse$SPP2))
@@ -265,7 +273,7 @@ boutable3 <- data.frame(boutable2[,1:9], AD_M="", AD_F="", AD_U="", SUB_M="",
                         U_U="", boutable2[,10:11], BOUT_COLUMN="",PHENO=boutable2[,12],
                         x10M="", boutable2[,13:15])
 boutable4 <- boutable3[boutable3$SPP != "Human", ]
-boutable4 <- boutable4[order(boutable4[, "DATE"],boutable4[, "FILE_START"]),]
+boutable4 <- boutable4[order(boutable4[, "DATE"],boutable4[, "TIME_START"]),]
 #for filling in adult/sex columns if bout is only 1 photo
 #for (b in 1:length(boutable3$bout)){
  # if (table(outtable$bout)[b] > 1) {boutable3[b, 10:19] <- ""} 
@@ -277,6 +285,7 @@ boutable4 <- boutable4[order(boutable4[, "DATE"],boutable4[, "FILE_START"]),]
 
 write.csv(boutable4, paste0("./",Timelapse$RootFolder[1], "bout.csv"))
 
+#write.csv(boutable4[,6:8], paste0("./",Timelapse$RootFolder[1], "bouttemp.csv")) #this was just to correct previous error
 
 #################################
 ###########scrap#################
