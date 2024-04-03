@@ -3,7 +3,7 @@
 #########################################################
 #Script for automating composition of bout template from Timelapse output
 #with some data filled in. To use, run as is but modify file paths
-# in lines: 16, 17, 27, 273
+# in lines: 19, 20, 30
 #########################################################
 #########################################################
 #########################################################
@@ -17,7 +17,7 @@ library(lubridate)
 library(stringr)
 #read in output from Timelapse, change to your file path
 setwd("C:/Users/eli.wildey/Documents/TrailCamPhotos")
-Timelapse <- read.csv(file = "./4F_CLO_230501-240104/4F_CLO_230501-240104Timelapse.csv", na.strings = "")
+Timelapse <- read.csv(file = "./5J_CLO_230509-231215/5J_CLO_230509-231215Timelapse.csv", na.strings = "")
 #change name of DateTime column
 colnames(Timelapse)[4] <- "DateTimeOriginal"
 
@@ -27,7 +27,7 @@ Timelapse$MTN <- ifelse(grepl(pattern = "DEL", x = Timelapse$RootFolder) == TRUE
 #  slow step, could be problematic for bigger photo folders   #
 ###############################################################
 #change path argument to path of photos folder
-pics <- list.files(path="./4F_CLO_230501-240104/", pattern=".jpg$", full.names=T, recursive=T, ignore.case=T)
+pics <- list.files(path="./5J_CLO_230509-231215/", pattern=".jpg$", full.names=T, recursive=T, ignore.case=T)
 for (p in 1:length(pics)){
   IMAGE  <- magick::image_read(pics[p]) 
   #temperature
